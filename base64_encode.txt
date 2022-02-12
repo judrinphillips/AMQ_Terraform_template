@@ -1,0 +1,73 @@
+
+DATA>>
+  <?xml version = "1.0" encoding = "UTF-8" standalone = "yes"?>
+<broker xmlns = "http://activemq.apache.org/schema/core"
+schedulePeriodForDestinationPurge = "100000"
+start = "false">
+
+
+<destinationPolicy>
+<policyMap>
+<policyEntries>
+
+<policyEntry gcInactiveDestinations = "true"
+inactiveTimoutBeforeGC = "600000"
+topic = "&gt;">
+
+<pendingMessageLimitStrategy>
+<constantPendingMessageLimitStrategy limit = "1000"/>
+</pendingMessageLimitStrategy>
+
+
+</policyEntry>
+
+<policyEntry queue = "&gt;">
+
+<deadLetterStrategy>
+<individualDeadLetterStrategy queuePrefix = "DLQ." useQueueForQueueMessages = "true" />
+</deadLetterStrategy>
+
+</policyEntry>
+
+</policyEntries>
+</policyMap>
+</destinationPolicy>
+
+<!--
+You can control advanced ActiveMQ features using plugins.
+-->
+<plugins>
+
+<forcePersistencyModeBrokerPlugin persistenceFlag ="true"/>
+
+<!-- #TODO plan DLQ removable
+<discardingDLQBrokerPlugin dropAll= "true" dropTemporaryQueues = "true" dropTemporaryTopics = "true"/>
+-->
+
+<!--
+The Redelivery plugin extends the capabilities of destination policies with respect to message redelivery.
+For more information, see http : //activemq.apache.org/message-redelivery-and-dlq-handling.html
+-->
+<!--
+<redeliveryPlugin fallbackToDeadLetter ="true" sendToDlqIfMaxRetriesExceeded = "true">
+<redeliveryPolicyMap>
+<redeliveryPolicyMap>
+<redeliveryPolicyEntries>
+<redeliveryPolicy maximumRedeliveries = "4" queue= "SpecialQueue" redeliveryDelay = "10000"/>
+</redeliveryPolicyEntries>
+<defaultEntry>
+<redeliveryPolicy initialRedeliveryDelay = "5000" maximumRedeliveries= "4" redeliveryDelay = "10000"/>
+</defaultEntry>
+</redeliveryPolicyMap>
+</redeliveryPolicyMap>
+</redeliveryPlugin>
+-->
+
+</plugins>
+
+<networkConnectors>
+<networkConnector conduitSubscriptions = "false"
+consumerTTL ="1"
+messageTTL = "-1"
+name = "QueueConnector_ConnectingBroker_1_To_2"
+uri = "masterslave:(

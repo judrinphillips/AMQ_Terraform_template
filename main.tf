@@ -35,11 +35,13 @@ variable "public_subnet" {
 
 variable "Amazon_MQBroker_AdminUsername" {
   type = string
+  default = "Amazon_MQBroker_AdminUsername"
 
 }
 
 variable "Amazon_MQBroker_ApplicationUsername" {
   type = string
+  default = "Amazon_MQBroker_ApplicationUsername"
 }
 
 variable "AmqSubnets" {
@@ -54,28 +56,29 @@ variable "ManagementVPC_Cidr" {
   type = string
 }
 
-module "path" {
-  source = "config2_base64_encode.txt"
-
-}
-
-variable "config2_base64_encode" {
-  type = file
-  default = "config2_base64_encode.txt"
-}
-
-
-
-
-
-
 
 
 variable "Environmentinstance" {
   type = string
 }
 
+module "path" {
+  source = "path.module"
+}
+variable "Broker1_ip" {
+  type = string
+}
+variable "Broker2_ip" {
+  type = string
+}
 
+variable "Broker3_ip" {
+  type = string
+}
+####################################################################
+
+#Creating AMQ Message Broker for Pathways2
+#####################################################################
 
 module "AMQ_security_group" {
   source  = "terraform-aws-modules/security-group/aws"
@@ -119,35 +122,35 @@ ingress_with_cidr_blocks = [
       from_port = 61617
       to_port = 61617
       protocol = "tcp"
-      cidr_blocks = "${element(split(",",var.AmqSubnetCidr ),0 )}"
+      cidr_blocks = "${element(split(",",var.AmqSubnetCidr ),abs(0) )}"
 
       from_port= 61617
       to_port = 61617
       protocol= "tcp"
-      cidr_blocks = "${element(split(",",var.AmqSubnetCidr ),1 )}"
+      cidr_blocks = "${element(split(",",var.AmqSubnetCidr ),abs(1) )}"
 
       from_port= 61617
       to_port= 61617
       protocol= "tcp"
-      cidr_blocks = "${element(split(",",var.AmqSubnetCidr ),2 )}"
+      cidr_blocks = "${element(split(",",var.AmqSubnetCidr ),abs(2) )}"
 
       from_port= 8162
       to_port= 8162
       protocol= "tcp"
 
-      cidr_blocks = "${element(split(",",var.AmqSubnetCidr ),0 )}"
+      cidr_blocks = "${element(split(",",var.AmqSubnetCidr ),abs(0) )}"
 
       from_port= 8162
       to_port= 8162
       protocol= "tcp"
 
-      cidr_blocks = "${element(split(",",var.AmqSubnetCidr ),1 )}"
+      cidr_blocks = "${element(split(",",var.AmqSubnetCidr ),abs(1) )}"
 
       from_port= 8162
       to_port= 8162
       protocol= "tcp"
 
-      cidr_blocks = "${element(split(",",var.AmqSubnetCidr ),3 )}"
+      cidr_blocks = "${element(split(",",var.AmqSubnetCidr ),abs(2) )}"
 
 
 
@@ -169,8 +172,8 @@ resource "aws_mq_broker" "brokerNode1" {
   engine_version      = "5.15.9"
   host_instance_type  = "mq.t2.micro"
   publicly_accessible = false
-  security_groups     = [module.AMQ_security_group]
-  subnet_ids          = "${element(split(",",var.AmqSubnets),0 )}"
+  security_groups     = module.AMQ_security_group
+  subnet_ids          = element(split(",",var.AmqSubnets),abs(0) )
   logs {
     audit   = "true"
     general = "true"
@@ -195,8 +198,8 @@ resource "aws_mq_broker" "brokerNode2" {
   engine_version     = "5.15.9"
   host_instance_type = "mq.t2.micro"
   publicly_accessible = false
-  security_groups = [module.AMQ_security_group]
-  subnet_ids = "${element(split(",",var.AmqSubnets),1 )}"
+  security_groups = module.AMQ_security_group
+  subnet_ids = element(split(",",var.AmqSubnets),abs(1) )
   user {
     password = module.AMQ_Admin_random_password
     username = var.Amazon_MQBroker_AdminUsername
@@ -218,8 +221,8 @@ resource "aws_mq_broker" "brokerNode3" {
   engine_version     = "5.15.9"
   host_instance_type = "m2.t2.micro"
   publicly_accessible = false
-  security_groups = [module.AMQ_security_group]
-  subnet_ids = "${element(split(",",var.AmqSubnets),2 )}"
+  security_groups = module.AMQ_security_group
+  subnet_ids = element(split(",",var.AmqSubnets),abs(2) )
   user {
     password = module.AMQ_Admin_random_password
     username = var.Amazon_MQBroker_AdminUsername
@@ -251,7 +254,7 @@ module "AMQ_Application_random_password" {
   length           = 20
   override_special = "@#$%^*()-=_+[]{};<>?,./"
 }
-#Configuration 1
+
 
 
 
@@ -267,7 +270,7 @@ module "nlb" {
 
   vpc_id  = var.vpc_id
   subnets = [
-    "${element(split(",",var.AmqSubnets),0 )}, ${element(split(",",var.AmqSubnets),1 )},${element(split(",",var.AmqSubnets),0 )}"
+    "${element(split(",",var.AmqSubnets),abs(0) )}, ${element(split(",",var.AmqSubnets),abs(1) )},${element(split(",",var.AmqSubnets),abs(2) )}"
   ]
 
   access_logs = {
@@ -277,47 +280,73 @@ module "nlb" {
 }
 
 resource "aws_lb_target_group" "AMQ_Network_loadbalancer_target" {
- name = join [(var.name )]-[(var.Environmentinstance)]-nlb
- health_check {healthy_threshold = count,unhealthy_threshold = count,port = "8162",protocol = "tcp"}
- port = 8167
- protocol = tcp
- count = 5
-target_type = cidrhost(lookup(element(0 )1, )2, )
+  name        = join [(var.name )]-[(var.Environmentinstance)]-nlb
+  health_check { healthy_threshold = count, unhealthy_threshold = count, port = "8162", protocol = "tcp" }
+  port        = 8167
+  protocol    = tcp
+  count       = 5
+  vpc_id =  var.vpc_id
+  target_type = "ip"
 
-vpc_id = var.vpc_id
+}
+
+resource "aws_lb_target_group_attachment" "AMQ_TargetGroup" {
+  target_group_arn = aws_lb_target_group.AMQ_Network_loadbalancer_target
+  target_id        = lookup(var.Broker1_ip, var.Broker2_ip, var.Broker3_ip )
 
 
 }
+
 
 resource "aws_lb_listener" "AMQ_Networlloadbalance_listner" {
   load_balancer_arn = module.nlb
+  port = 61617
+  protocol = "tcp"
   default_action {
-    forward {
-      target_group {
-        arn = aws_lb_target_group.AMQ_Network_loadbalancer_target
-      }
-    }
-    type = "network"
+    type = "forward"
+    target_group_arn = aws_lb_target_group.AMQ_Network_loadbalancer_target
   }
 }
-resource "aws_mq_configuration" "config1" {
-  data           = ""
-  engine_type    = ""
-  engine_version = ""
-  name           = ""
+
+
+
+
+
+
+
+
+
+resource "aws_mq_configuration" "Config1" {
+
+    engine_type    = "ACTIVEMQ"
+    engine_version = "5.15.14"
+    name           = "BrokerConfiguration1"
+    data           = filebase64("${path.module}/base64_encode.txt")
+  }
+
+resource "aws_mq_configuration" "Config2" {
+  data           = filebase64("${path.module}/base64_encode.txt}")
+  engine_type    = "ACTIVEMQ"
+  engine_version = "5.15.14"
+  name           = "BrokerConfiguration2"
+}
+
+resource "aws_mq_configuration" "Config3" {
+  data           = filebase64("${path.module}/base64_encode.txt}")
+  engine_type    = "ACTIVEMQ"
+  engine_version = "5.15.14"
+  name           = "BrokerConfiguration3"
+
 }
 
 
 
-resource "aws_mq_configuration" "config2" {
-  data           = file(filebase64(var.config2_base64_encode)element(lookup(0,1 )lookup(Broker1,OpenWireEndpoints ),
-  "username=var.Amazon_MQBroker_AdminUsername" filebase64() ))
-  engine_type    = ACTIVEMQ
-  engine_version = 5.15.14
-  name           = "BrokerConfig2"
 
 
-}
+
+
+
+
 
 
 
